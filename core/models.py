@@ -7,6 +7,7 @@ class TestCase(models.Model):
     github_url = models.URLField()
     status = models.CharField(max_length=20, default='Pending')
     execution_result = models.TextField(blank=True, null=True)
+    execution_time = models.CharField(max_length=50, default='-')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

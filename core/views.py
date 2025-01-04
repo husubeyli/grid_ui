@@ -1,3 +1,5 @@
+
+import time
 from django.shortcuts import render
 import subprocess
 from django.conf import settings
@@ -25,7 +27,7 @@ def trigger_test(request):
     try:
         test_case = TestCase.objects.get(id=test_id)
     except TestCase.DoesNotExist:
-        return Response({"error": "Test Vakası Bulunamadı"}, status=404)
+        return Response({"error": "Test Case Not Found"}, status=404)
 
     # Selenium Grid URL'si
     grid_url = settings.SELENIUM_GRID_URL
@@ -42,55 +44,68 @@ def trigger_test(request):
     #     # '-Dsurefire.suiteXmlFiles=src/test/resources/testng.xml'
 
     # ]
+    
+
     command = [
         'mvn',
         'clean',
         'test',
         '-Dselenium.grid.url=' + grid_url,
-        '-Dsurefire.suiteXmlFiles=src/test/resources/testng.xml'
+        # '-Dsurefire.suiteXmlFiles=src/test/resources/testng.xml',
         # f'-Dtest={test_case.name}',
+        f'-Dtest=GoogleTest#{test_case.name}',
         # '-Dtest=GoogleTest'  # Test sınıfını doğrudan çalıştır
     ]
 
     print("Maven komutu:", command)
+    start_time = time.time()  
     try:
         result = subprocess.run(
             command,
-            cwd=MAVEN_PROJECT_PATH,  # Maven komuxtunu projenin içinde çalıştır
+            cwd=MAVEN_PROJECT_PATH,  
             capture_output=True,
             text=True,
-            timeout=120  # 2 dakika sınır
         )
-        print(100*'#')
-        print("STDOUT:", result.stdout)
-        print(100*'*')
-        print("STDERR:", result.stderr)
-        print(os.path.exists(MAVEN_PROJECT_PATH)) 
+        # print("STDOUT:", result.stdout)
+        # print("STDERR:", result.stderr)
+        # print(os.path.exists(MAVEN_PROJECT_PATH)) 
         
-        # Maven çıktısını veritabanına kaydet
+        end_time = time.time() 
+        execution_time = round(end_time - start_time, 2)
+        
         test_case.execution_result = result.stdout
-        test_case.status = 'Başarılı' if result.returncode == 0 else 'Başarısız'
+        test_case.status = 'Successful' if result.returncode == 0 else 'Failed'
+        test_case.execution_time = f"{execution_time} seconds"
         test_case.save()
 
         return Response({
-            "message": "Test başarıyla çalıştırıldı",
+            "message": "Test executed successfully",
             "output": result.stdout
         })
 
     except subprocess.CalledProcessError as e:
         print(e, 'error_var')
         return Response({
-            "error": "Maven testi başlatılamadı",
+            "error": "Maven test could not be started",
             "details": e.stderr
         }, status=500)
 
 
+def trigger_test_detail(request, test_id):
+    try:
+        test_case = TestCase.objects.get(id=test_id)
+    except TestCase.DoesNotExist:
+        return Response({"error": "Test Case Not Found"}, status=404)
+
+    return render(request, 'detail.html', {
+        'test_case': test_case
+    })
 
 class HomePageView(TemplateView):
     template_name = 'index.html'
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Veritabanından tüm test vakalarını çekiyoruz
+        
         context['test_cases'] = TestCase.objects.all()
         return context
